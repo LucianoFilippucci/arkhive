@@ -6,7 +6,9 @@ import it.arkhive.arkhive.Helper.DTO.User;
 import it.arkhive.arkhive.Helper.Exceptions.LoginRequiredException;
 import it.arkhive.arkhive.Helper.Exceptions.UserAlreadyExistsException;
 import it.arkhive.arkhive.Helper.Exceptions.UserNotExistsException;
+import it.arkhive.arkhive.Helper.Exceptions.UserSessionNotFoundException;
 import it.arkhive.arkhive.Helper.POJO.LoginResponse;
+import it.arkhive.arkhive.Helper.SHAHASH;
 import it.arkhive.arkhive.Repository.UserRepository;
 import it.arkhive.arkhive.Repository.UserSessionRepository;
 import it.arkhive.arkhive.Security.Authentication.JwtUtil;
@@ -65,48 +67,74 @@ public class UserService {
         Optional<UserEntity> tmp = this.userRepository.findByUsername(userDetails.getUsername());
         if(tmp.isEmpty()) throw new UserNotExistsException("Username not found.");
         UserEntity user = tmp.get();
-        String token = jwtUtils.generateToken(user);
-        String refreshToken = jwtUtils.generateRefreshToken(user);
-        loginResponse.setToken(token);
-        loginResponse.setRefreshToken(refreshToken);
 
         UserSessionEntity userSession = new UserSessionEntity();
         userSession.setUser(user);
-        userSession.setToken(token);
-        userSession.setRefreshToken(refreshToken);
+        userSession.setToken("");
+        userSession.setRefreshToken("");
         userSession.setLastLoginAt(OffsetDateTime.now());
         userSession.setUpdatedAt(OffsetDateTime.now());
         userSession.setLocation("");
         userSession.setDeviceName("");
         userSession.setRevoked(false);
-
         UserSessionEntity tmp2 = this.userSessionRepository.save(userSession);
+
+
+        String token = jwtUtils.generateToken(user, tmp2.getSessionId());
+
+
+        String refreshToken = jwtUtils.generateRefreshToken(user, tmp2.getSessionId());
+        String hashedToken = SHAHASH.hash(refreshToken); // SHA-256 hashing to decrease the string length <= 72 bytes
+        String encoded = passwordEncoder.encode(hashedToken);
+
+        tmp2.setToken(token);
+        tmp2.setRefreshToken(encoded);
+        tmp2.setUpdatedAt(OffsetDateTime.now());
+        UserSessionEntity tmp3 = this.userSessionRepository.save(tmp2);
+
+        loginResponse.setToken(token);
+        loginResponse.setRefreshToken(refreshToken);
+
+
 
         return loginResponse;
     }
 
     @Transactional
-    public LoginResponse refreshToken(String refreshToken) throws UserNotExistsException, LoginRequiredException {
+    public LoginResponse refreshToken(String refreshToken) throws UserNotExistsException, LoginRequiredException, UserSessionNotFoundException {
         if(jwtUtils.validateRefreshToken(refreshToken)) {
             Optional<UserEntity> tmp = this.userRepository.findByUsername(jwtUtils.getRefreshTokenSubject(refreshToken));
             if(tmp.isEmpty()) throw new UserNotExistsException("Username not found.");
             UserEntity user = tmp.get();
-            String accessToken = jwtUtils.generateToken(user);
-            String newRefreshToken = jwtUtils.generateRefreshToken(user);
-
-            UserSessionEntity session = this.userSessionRepository.findByRefreshToken(refreshToken);
-            session.setRefreshToken(newRefreshToken);
-            session.setToken(accessToken);
-            session.setUpdatedAt(OffsetDateTime.now());
-            session.setLastLoginAt(OffsetDateTime.now());
-            UserSessionEntity tmp2 = this.userSessionRepository.save(session);
 
 
 
-            LoginResponse loginResponse = new LoginResponse();
-            loginResponse.setToken(accessToken);
-            loginResponse.setRefreshToken(newRefreshToken);
-            return loginResponse;
+            String hashedToken = SHAHASH.hash(refreshToken);
+            String encoded = passwordEncoder.encode(hashedToken);
+
+            Long sessionId = jwtUtils.getRefreshTokenSessionId(refreshToken);
+
+            Optional<UserSessionEntity> tmp2 = this.userSessionRepository.findBySessionId(sessionId);
+            if(tmp2.isEmpty()) throw new UserSessionNotFoundException("Session Not Found.");
+            UserSessionEntity session = tmp2.get();
+            if(passwordEncoder.matches(hashedToken, session.getRefreshToken())) {
+                String newRefreshToken = jwtUtils.generateRefreshToken(user, sessionId);
+                String accessToken = jwtUtils.generateToken(user, sessionId);
+
+                String newHashedToken = SHAHASH.hash(newRefreshToken);
+                String newEncoded = passwordEncoder.encode(newHashedToken);
+                session.setRefreshToken(newEncoded);
+
+                session.setToken(accessToken);
+                session.setUpdatedAt(OffsetDateTime.now());
+                session.setLastLoginAt(OffsetDateTime.now());
+                UserSessionEntity tmp3 = this.userSessionRepository.save(session);
+
+                LoginResponse loginResponse = new LoginResponse();
+                loginResponse.setToken(accessToken);
+                loginResponse.setRefreshToken(newRefreshToken);
+                return loginResponse;
+            }
         }
         throw new LoginRequiredException("Refresh token not valid.");
     }

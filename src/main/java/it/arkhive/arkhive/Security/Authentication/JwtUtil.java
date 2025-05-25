@@ -35,12 +35,13 @@ public class JwtUtil {
     }
 
     // Generate JWT Token
-    public String generateToken(UserEntity user) {
+    public String generateToken(UserEntity user, Long sessionId) {
         return Jwts.builder()
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
                 .claim("email", user.getEmail())
                 .claim("id", user.getId())
+                .claim("sessionId", sessionId)
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(accessKey, SignatureAlgorithm.HS256)
                 .compact();
@@ -82,6 +83,14 @@ public class JwtUtil {
                 .get(claim, String.class);
     }
 
+    public Long getRefreshTokenSessionId(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(refreshKey).build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("sessionId", Long.class);
+    }
+
     public String getRefreshTokenSubject(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(refreshKey).build()
@@ -91,13 +100,14 @@ public class JwtUtil {
     }
 
     // Generate RefreshToken
-    public String generateRefreshToken(UserEntity user) {
+    public String generateRefreshToken(UserEntity user, Long sessionId) {
         return Jwts.builder()
                 .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtRefreshTokenExpiration))
                 .claim("email", user.getEmail())
                 .claim("id", user.getId())
+                .claim("sessionId", sessionId)
                 .signWith(refreshKey, SignatureAlgorithm.HS256)
                 .compact();
     }

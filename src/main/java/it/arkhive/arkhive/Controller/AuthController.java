@@ -5,6 +5,7 @@ import it.arkhive.arkhive.Helper.DTO.User;
 import it.arkhive.arkhive.Helper.Exceptions.LoginRequiredException;
 import it.arkhive.arkhive.Helper.Exceptions.UserAlreadyExistsException;
 import it.arkhive.arkhive.Helper.Exceptions.UserNotExistsException;
+import it.arkhive.arkhive.Helper.Exceptions.UserSessionNotFoundException;
 import it.arkhive.arkhive.Helper.POJO.HttpResponse;
 import it.arkhive.arkhive.Helper.POJO.LoginResponse;
 import it.arkhive.arkhive.Repository.UserRepository;
@@ -93,9 +94,10 @@ public class AuthController {
         } catch (UserNotExistsException e) {
             message = "User not exists.";
             statusCode = HttpStatus.BAD_REQUEST.value();
-        } catch (LoginRequiredException e) {
+        } catch (LoginRequiredException | UserSessionNotFoundException e) {
             message = "Login required.";
             statusCode = HttpStatus.UNAUTHORIZED.value();
+            System.out.println(e);
         }
 
         return ResponseEntity.ok(
