@@ -1,44 +1,55 @@
 package it.arkhive.arkhive.Service;
 
 import it.arkhive.arkhive.Entity.UserEntity;
+import it.arkhive.arkhive.Entity.UserPasswordResetEntity;
 import it.arkhive.arkhive.Entity.UserSessionEntity;
 import it.arkhive.arkhive.Helper.DTO.User;
-import it.arkhive.arkhive.Helper.Exceptions.LoginRequiredException;
-import it.arkhive.arkhive.Helper.Exceptions.UserAlreadyExistsException;
-import it.arkhive.arkhive.Helper.Exceptions.UserNotExistsException;
-import it.arkhive.arkhive.Helper.Exceptions.UserSessionNotFoundException;
+import it.arkhive.arkhive.Helper.Exceptions.*;
 import it.arkhive.arkhive.Helper.POJO.LoginResponse;
 import it.arkhive.arkhive.Helper.SHAHASH;
+import it.arkhive.arkhive.Repository.UserPasswordResetRepository;
 import it.arkhive.arkhive.Repository.UserRepository;
 import it.arkhive.arkhive.Repository.UserSessionRepository;
 import it.arkhive.arkhive.Security.Authentication.JwtUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 public class UserService {
+
+    @Value("${arkhive.password-reset.expiration}")
+    private Long passwordResetTokenExpiration;
+
+    @Value("${arkhive.password-reset.reset-endpoint}")
+    private String passwordResetResetEndpoint;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtils;
     private final UserSessionRepository userSessionRepository;
+    private final UserPasswordResetRepository passwordResetRepository;
+    private final MailerService mailerService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtUtil jwtUtils, UserSessionRepository userSessionRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtUtil jwtUtils, UserSessionRepository userSessionRepository, UserPasswordResetRepository passwordResetRepository, MailerService mailerService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.userSessionRepository = userSessionRepository;
+        this.passwordResetRepository = passwordResetRepository;
+        this.mailerService = mailerService;
     }
 
     @Transactional
@@ -147,6 +158,78 @@ public class UserService {
         session.setRevoked(true);
         this.userSessionRepository.save(session);
         return true;
+    }
+
+
+
+    @Transactional
+    public void requestPasswordReset(String email) throws UserNotExistsException, EmailException {
+         Optional<UserEntity> tmp = this.userRepository.findByEmail(email);
+         if(tmp.isEmpty()) throw new UserNotExistsException("User not found.");
+         UserEntity user = tmp.get();
+
+         // Find all the request made on that email, invalidate the oldest if isUsed = false and make a new one
+        List<UserPasswordResetEntity> oldFalseRequests = this.passwordResetRepository.findAllByUser(user);
+        oldFalseRequests.forEach(request -> {
+            if(!request.isUsed()) {
+                request.setUsed(true);
+            }
+        });
+        this.passwordResetRepository.saveAll(oldFalseRequests);
+
+        UserPasswordResetEntity passwordReset = new UserPasswordResetEntity();
+        passwordReset.setToken("");
+        passwordReset.setUsed(false);
+
+        passwordReset.setExpiresAt(OffsetDateTime.now().plus(Duration.ofMillis(this.passwordResetTokenExpiration)));
+        passwordReset.setCreatedAt(OffsetDateTime.now());
+        passwordReset.setUser(user);
+
+        UserPasswordResetEntity newEntity = this.passwordResetRepository.save(passwordReset);
+        String token = jwtUtils.generatePasswordResetToken(user, newEntity.getId());
+        String hashedToken = SHAHASH.hash(token);
+        String encoded = passwordEncoder.encode(hashedToken);
+        newEntity.setToken(encoded);
+
+
+
+        String resetLink = this.passwordResetResetEndpoint + token;
+        try {
+            this.mailerService.sendMail("Password Reset", "", user.getEmail(), user.getUsername(), resetLink);
+        } catch (EmailException e) {
+            System.out.println("Error sending email.");
+            throw new EmailException("Error sending email.");
+        }
+
+        this.passwordResetRepository.save(passwordReset);
+    }
+
+    @Transactional
+    public boolean resetPassword(String token, String newPassword) throws InvalidTokenException {
+
+        Optional<UserPasswordResetEntity> tmp = this.passwordResetRepository.findByUserIdAndUsedIsFalse(this.jwtUtils.getUserIdFromResetToken(token));
+        if(tmp.isEmpty()) throw new InvalidTokenException("Invalid Token");
+        UserPasswordResetEntity passwordReset = tmp.get();
+
+        if(passwordEncoder.matches(SHAHASH.hash(token), passwordReset.getToken())) {
+            try {
+                if(this.jwtUtils.validatePasswordResetToken(token) && !passwordReset.isUsed()) {
+
+                    String encodedPassword = passwordEncoder.encode(newPassword);
+                    passwordReset.getUser().setPassword(encodedPassword);
+                    passwordReset.setUsed(true);
+                    this.passwordResetRepository.save(passwordReset);
+
+                    this.userRepository.save(passwordReset.getUser());
+                    return true;
+                }
+            } catch (Exception e) {
+                return false;
+            }
+        } else {
+            throw new InvalidTokenException("Invalid Token");
+        }
+        return false;
     }
 
 }

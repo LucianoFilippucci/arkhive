@@ -18,3 +18,13 @@ arkhive:
     secret: ${TOKEN_SECRET}
     refresh-token-secret: ${REFRESH_TOKEN_SECRET}
     refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION}
+
+
+  mailtrap:
+    token: ${MAILTRAP_API_TOKEN}
+    mail-sender: ${MAIL_SENDER}
+
+  password-reset:
+    secret: ${PASSWORD_RESET_TOKEN_SECRET}
+    expiration: ${PASSWORD_RESET_TOKEN_EXPIRATION}
+    reset-endpoint: http://localhost:8080/api/v1/user/password/reset?token=

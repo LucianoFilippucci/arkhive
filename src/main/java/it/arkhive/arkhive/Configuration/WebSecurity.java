@@ -54,7 +54,11 @@ public class WebSecurity {
                         sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorizeRequests ->
                         authorizeRequests
-                                .requestMatchers("/api/v1/user/auth/**", "/api/v1/user/test").permitAll()
+                                .requestMatchers(
+                                        "/api/v1/user/auth/**",
+                                        "/api/v1/user/test",
+                                        "/api/v1/user/password/reset/request",
+                                        "/api/v1/user/password/reset").permitAll()
                                 .anyRequest().authenticated());
         http.addFilterBefore(authenticationTokenFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
