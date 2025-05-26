@@ -2,6 +2,7 @@ package it.arkhive.arkhive.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -54,5 +55,8 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user")
     private List<UserSessionEntity> sessions;
+
+    @OneToMany(mappedBy = "user")
+    private List<UserPasswordResetEntity> passwordResets;
 
 }
