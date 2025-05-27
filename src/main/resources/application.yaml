@@ -11,6 +11,16 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 
+management:
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      access: read_only
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
 
 arkhive:
   auth:
