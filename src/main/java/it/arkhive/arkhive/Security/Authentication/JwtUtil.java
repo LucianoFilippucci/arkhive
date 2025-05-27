@@ -65,6 +65,14 @@ public class JwtUtil {
                 .getSubject();
     }
 
+    public Long getUserIdFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(accessKey).build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("id", Long.class);
+    }
+
     // Validate JWT Token
     public boolean validateJwtToken(String token) {
         try {

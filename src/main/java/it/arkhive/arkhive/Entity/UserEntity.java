@@ -45,6 +45,20 @@ public class UserEntity {
     @Column(name = "provider_id", length = 255)
     private String providerId;
 
+
+    @Column(name = "bio", length = 200)
+    private String bio;
+
+    @Column(name = "profile_pic", length = 36)
+    private String profilePic;
+
+    @Column(name = "profile_cover", length = 36)
+    private String profileCover;
+
+    @Column(name = "public_profile", nullable = false)
+    private boolean publicProfile;
+
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",

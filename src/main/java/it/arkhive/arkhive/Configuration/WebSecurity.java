@@ -59,7 +59,8 @@ public class WebSecurity {
                                         "/api/v1/user/test",
                                         "/api/v1/user/password/reset/request",
                                         "/api/v1/user/password/reset",
-                                        "/actuator/**").permitAll()
+                                        "/actuator/**",
+                                        "/api/v1/user/{user-id}").permitAll()
                                 .anyRequest().authenticated());
         http.addFilterBefore(authenticationTokenFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();

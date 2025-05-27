@@ -28,3 +28,9 @@ arkhive:
     secret: ${PASSWORD_RESET_TOKEN_SECRET}
     expiration: ${PASSWORD_RESET_TOKEN_EXPIRATION}
     reset-endpoint: http://localhost:8080/api/v1/user/password/reset?token=
+
+  s3:
+    uri: ${S3_URI}
+    access-key: ${CREDENTIAL_ACCESS_KEY}
+    secret-key: ${CREDENTIAL_SECRET_ACCESS_KEY}
+    bucket: ${BUCKET_NAME}
