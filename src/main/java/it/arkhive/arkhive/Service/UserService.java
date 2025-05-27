@@ -6,6 +6,7 @@ import it.arkhive.arkhive.Entity.UserSessionEntity;
 import it.arkhive.arkhive.Helper.DTO.User;
 import it.arkhive.arkhive.Helper.Exceptions.*;
 import it.arkhive.arkhive.Helper.POJO.LoginResponse;
+import it.arkhive.arkhive.Helper.POJO.UserPojo;
 import it.arkhive.arkhive.Helper.SHAHASH;
 import it.arkhive.arkhive.Repository.UserPasswordResetRepository;
 import it.arkhive.arkhive.Repository.UserRepository;
@@ -19,11 +20,17 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -34,6 +41,12 @@ public class UserService {
     @Value("${arkhive.password-reset.reset-endpoint}")
     private String passwordResetResetEndpoint;
 
+    @Value("${arkhive.s3.bucket}")
+    private String bucket;
+
+    @Value("${arkhive.s3.uri}")
+    private String s3Uri;
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -41,8 +54,9 @@ public class UserService {
     private final UserSessionRepository userSessionRepository;
     private final UserPasswordResetRepository passwordResetRepository;
     private final MailerService mailerService;
+    private final S3Client s3Client;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtUtil jwtUtils, UserSessionRepository userSessionRepository, UserPasswordResetRepository passwordResetRepository, MailerService mailerService) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtUtil jwtUtils, UserSessionRepository userSessionRepository, UserPasswordResetRepository passwordResetRepository, MailerService mailerService, S3Client s3Client) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
@@ -50,6 +64,7 @@ public class UserService {
         this.userSessionRepository = userSessionRepository;
         this.passwordResetRepository = passwordResetRepository;
         this.mailerService = mailerService;
+        this.s3Client = s3Client;
     }
 
     @Transactional
@@ -232,4 +247,61 @@ public class UserService {
         return false;
     }
 
+    @Transactional
+    public String  uploadProfilePic(MultipartFile file, String token) throws IOException, UserNotExistsException{
+
+        Optional<UserEntity> tmp = this.userRepository.findById(this.jwtUtils.getUserIdFromToken(token));
+        if(tmp.isEmpty()) throw new UserNotExistsException("User not found.");
+        UserEntity user = tmp.get();
+
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = originalFilename != null && originalFilename.contains(".") ? originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
+        String uuid = UUID.randomUUID().toString();
+        String key = "public/users/" + user.getId() + "/" + uuid + extension;
+
+        user.setProfilePic(uuid);
+
+        PutObjectRequest putRequest = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(file.getContentType())
+                .build();
+        s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
+
+        this.userRepository.save(user);
+        return s3Uri + "/" + bucket + "/" + key;
+
+    }
+
+    @Transactional
+    public boolean updateBio(String token, String bio) throws UserNotExistsException, IllegalArgumentException {
+        Optional<UserEntity> tmp = this.userRepository.findById(this.jwtUtils.getUserIdFromToken(token));
+        if(tmp.isEmpty()) throw new UserNotExistsException("User not found.");
+        UserEntity user = tmp.get();
+
+        if(bio.length() > 200) throw new IllegalArgumentException("bio length exceeds 200");
+
+        user.setBio(bio);
+        this.userRepository.save(user);
+        return true;
+    }
+
+    @Transactional
+    public String getBio(String token) throws UserNotExistsException {
+        Optional<UserEntity> tmp = this.userRepository.findById(this.jwtUtils.getUserIdFromToken(token));
+        if(tmp.isEmpty()) throw new UserNotExistsException("User not found.");
+        UserEntity user = tmp.get();
+        return user.getBio();
+    }
+
+    @Transactional
+    public UserPojo getUser(Long id) throws UserNotExistsException, UserProfileNotPublicException {
+        Optional<UserEntity> tmp = this.userRepository.findById(id);
+        if(tmp.isEmpty()) throw new UserNotExistsException("User not found.");
+        UserEntity user = tmp.get();
+        if(user.isPublicProfile())
+            return new UserPojo().fromEntityToPojo(user);
+        throw new UserProfileNotPublicException("User not public");
+    }
 }

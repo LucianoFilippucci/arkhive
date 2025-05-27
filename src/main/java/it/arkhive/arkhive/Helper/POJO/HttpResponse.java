@@ -14,4 +14,5 @@ public class HttpResponse<T> {
     protected Integer statusCode;
     protected String message;
     protected T data;
+    protected int errorCode;
 }
