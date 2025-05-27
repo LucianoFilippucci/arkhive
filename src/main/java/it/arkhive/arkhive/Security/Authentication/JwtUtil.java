@@ -40,6 +40,7 @@ public class JwtUtil {
         this.accessKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
         this.refreshKey = Keys.hmacShaKeyFor(jwtRefreshTokenSecret.getBytes(StandardCharsets.UTF_8));
         this.passwordResetKey = Keys.hmacShaKeyFor(jwtPasswordResetSecret.getBytes(StandardCharsets.UTF_8));
+
     }
 
     // Generate JWT Token

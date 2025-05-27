@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: arkhive
+
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+
+
+
+arkhive:
+  auth:
+    expiration: ${TOKEN_EXPIRATION}
+    secret: ${TOKEN_SECRET}
+    refresh-token-secret: ${REFRESH_TOKEN_SECRET}
+    refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION}
+
+
+  password-reset:
+    secret: ${PASSWORD_RESET_TOKEN_SECRET}
+    expiration: ${PASSWORD_RESET_TOKEN_EXPIRATION}
+    reset-endpoint: http://localhost:8080/api/v1/user/password/reset?token=
