@@ -44,3 +44,6 @@ arkhive:
     access-key: ${CREDENTIAL_ACCESS_KEY}
     secret-key: ${CREDENTIAL_SECRET_ACCESS_KEY}
     bucket: ${BUCKET_NAME}
+
+  musicbrainz:
+    token: ${MUSICBRAINZ_TOKEN}
